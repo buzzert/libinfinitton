@@ -9,20 +9,12 @@
 #include <hidapi/hidapi.h>
 
 typedef struct __attribute__((__packed__)) {
+    int32_t offset;
     int32_t length; // 0x1f40
 
     int32_t ctrl1;  // 0x55aaaa55
     int32_t ctrl2;  // 0x44332211
 } binary_data_partial_t;
-
-typedef struct __attribute__((__packed__)) {
-    int16_t  report_id; // 0x02
-    int16_t  b;         // padding
-    char     c;
-
-    binary_data_partial_t data;
-} binary_data_header_t;
-
 
 typedef struct __attribute__((__packed__)) {
     int8_t  a; // 0x12
@@ -49,7 +41,7 @@ unsigned long transfer_bitmap(const char *bmp_path, hid_device *device)
         return 0;
     }
 
-    unsigned long size = st_buf.st_size;
+    const unsigned long size = st_buf.st_size;
 
     FILE *f = fopen(bmp_path, "r");
     if (f == NULL) {
@@ -70,16 +62,19 @@ unsigned long transfer_bitmap(const char *bmp_path, hid_device *device)
     // Malloc payload and copy data after the header
     const int8_t report_id = 0x02;
     const size_t payload_size = 8017; // sent in two 8017 byte chunks
+    
+    size_t remain = size;
 
     size_t offset = 0;
     void *payload = calloc(payload_size, 1);
     
     // Write report_id (0x02)
     memcpy(payload, &report_id, 1);
-    offset += 5; // padding -- not sure what this is for
+    offset += 1;
 
     // Write first header
     binary_data_partial_t header = {
+        .offset = 0,
         .length = payload_size,
         .ctrl1  = 0x55aaaa55,
         .ctrl2  = 0x44332211
@@ -88,34 +83,34 @@ unsigned long transfer_bitmap(const char *bmp_path, hid_device *device)
     offset += sizeof(header);
 
     // Write first half of image data
-    size_t buf_offset = payload_size - offset;
-    memcpy(payload + offset, buf, buf_offset);
+    memcpy(payload + offset, buf, payload_size - offset);
+    remain -= payload_size - offset;
 
     // TRANSMIT
     hid_write(device, payload, payload_size);
-    // fwrite(payload, payload_size, 1, stdout);
     
     // Second payload
-    offset = 1; // leave the report_id in payload
-    
-    // Write original header
-    memcpy(payload + offset, &header, sizeof(header));
-    offset += 4;
+    memset(payload, 0, payload_size);
 
+    // report_id
+    memcpy(payload, &report_id, 1);
+    offset = 1;
+    
     // Second header
-    size_t bytes_remaining = offset + (size + sizeof(header)) - payload_size;
-    header.length = bytes_remaining;
+    header.offset = payload_size;
+    header.length = sizeof(header) + remain;
     memcpy(payload + offset, &header, sizeof(header));
     offset += sizeof(header);
 
     // Second half of image data
-    memcpy(payload + offset, buf + buf_offset + offset, size - buf_offset);
+    memcpy(payload + offset, buf + payload_size, remain);
 
     // TRANSMIT
-    hid_write(device, payload, bytes_remaining);
+    hid_write(device, payload, payload_size);
 
     // Cleanup
     free(payload);
+    free(buf);
     
     return size;
 }
