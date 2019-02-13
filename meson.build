@@ -1,18 +1,17 @@
-project('infctl', 'c',
+project('infinitton', 'c',
   default_options: ['c_std=c11']
 )
 
-deps = [
-  dependency('hidapi-libusb'),
-]
+inc = include_directories('include')
 
-srcs = [
-  'main.c'
-]
+subdir('include')
+subdir('src')
 
-executable(
-  meson.project_name(),
-  srcs,
-  dependencies: deps 
+pkg_mod = import('pkgconfig')
+pkg_mod.generate(
+  libraries: infinittonlib,
+  version: '1.0',
+  name: 'liblevitton',
+  description: 'A library for controlling the Levitton button pad'
 )
 
