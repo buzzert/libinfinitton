@@ -6,6 +6,7 @@ src = [
 
 deps = [
   dependency('hidapi-libusb'),
+  dependency('cairo'),
 ]
 
 infinittonlib = shared_library(

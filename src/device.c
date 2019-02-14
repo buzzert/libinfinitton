@@ -70,8 +70,6 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
     const int8_t report_id = 0x02;
     const size_t payload_size = 8017; // sent in two 8017 byte chunks
     
-    size_t remain = size;
-
     size_t offset = 0;
     unsigned char *payload = (unsigned char *)calloc (payload_size, 1);
     
@@ -91,7 +89,6 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
 
     // Write first half of image data
     memcpy (payload + offset, pixmap_data, payload_size - offset);
-    remain -= payload_size - offset;
 
     // TRANSMIT
     infdevice_write (device, payload, payload_size);
@@ -105,12 +102,12 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
     
     // Second header
     header.offset = payload_size;
-    header.length = sizeof (header) + remain;
+    header.length = sizeof (header) + size - payload_size;
     memcpy (payload + offset, &header, sizeof (header));
     offset += sizeof (header);
 
     // Second half of image data
-    memcpy (payload + offset, pixmap_data + payload_size, remain);
+    memcpy (payload + offset, pixmap_data + payload_size, payload_size - offset);
 
     // TRANSMIT
     infdevice_write (device, payload, payload_size);

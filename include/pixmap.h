@@ -7,6 +7,7 @@
 #pragma once
 
 #include <stdlib.h>
+#include <cairo/cairo.h>
 
 struct infpixmap_t_;
 typedef struct infpixmap_t_ infpixmap_t;
@@ -14,6 +15,13 @@ typedef struct infpixmap_t_ infpixmap_t;
 // Load a pixmap from a BMP file path
 // The BMP file should be 72x72, 24-bits (R8 G8 B8), no colorspace info
 extern infpixmap_t* infpixmap_open_file (const char *file_path);
+
+// Convenience: Returns a properly configured cairo surface for drawing
+extern cairo_surface_t* infpixmap_create_surface ();
+
+// Creates a pixmap with a cairo surface. The cairo surface is not retained by the pixmap,
+// because it must be converted.
+extern infpixmap_t* infpixmap_create (cairo_surface_t *surface);
 
 // Get the data pointer
 extern unsigned char* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length);
