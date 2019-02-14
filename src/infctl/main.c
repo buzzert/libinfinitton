@@ -32,6 +32,11 @@ int main (int argc, char **argv)
     }
 
     infdevice_t *device = infdevice_open ();
+    if (!device) {
+        fprintf(stderr, "Could not open device\n");
+        return 1;
+    }
+
     infdevice_set_pixmap_for_key_id (device, key_id, pixmap);
 
     infdevice_close (device);
