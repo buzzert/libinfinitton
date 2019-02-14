@@ -16,7 +16,7 @@ typedef struct infpixmap_t_ infpixmap_t;
 extern infpixmap_t* infpixmap_open_file (const char *file_path);
 
 // Get the data pointer
-extern void* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length);
+extern unsigned char* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length);
 
 // Free/cleanup pixmap
 extern void infpixmap_free (infpixmap_t *pixmap);

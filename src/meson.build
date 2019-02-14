@@ -1,6 +1,7 @@
 src = [
   'device.c',
-  'pixmap.c'
+  'pixmap.c',
+  'util.c',
 ]
 
 deps = [
