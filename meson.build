@@ -11,7 +11,7 @@ pkg_mod = import('pkgconfig')
 pkg_mod.generate(
   libraries: infinittonlib,
   version: '1.0',
-  name: 'liblevitton',
-  description: 'A library for controlling the Levitton button pad'
+  name: 'libinfinitton',
+  description: 'A library for controlling the Infinitton button pad'
 )
 
