@@ -78,10 +78,12 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
     
     // Malloc payload and copy data after the header
     const int8_t report_id = 0x02;
-    const size_t payload_size = 8017; // sent in two 8017 byte chunks
+    const size_t payload_size = 8000; // sent in two chunks
+    const size_t header_size = sizeof (binary_data_partial_t) + 1;
+    const size_t total_chunk_size = payload_size + header_size;
     
     size_t offset = 0;
-    unsigned char *payload = (unsigned char *)calloc (payload_size, 1);
+    unsigned char *payload = (unsigned char *)calloc (total_chunk_size, 1);
     
     // Write report_id (0x02)
     memcpy (payload, &report_id, 1);
@@ -98,13 +100,13 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
     offset += sizeof (header);
 
     // Write first half of image data
-    memcpy (payload + offset, pixmap_data, payload_size - offset);
+    memcpy (payload + offset, pixmap_data, total_chunk_size - offset);
 
     // TRANSMIT
-    infdevice_write (device, payload, payload_size);
+    infdevice_write (device, payload, total_chunk_size);
     
     // Second payload
-    memset (payload, 0, payload_size);
+    memset (payload, 0, total_chunk_size);
 
     // report_id
     memcpy (payload, &report_id, 1);
@@ -120,7 +122,7 @@ static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
     memcpy (payload + offset, pixmap_data + payload_size, payload_size - offset);
 
     // TRANSMIT
-    infdevice_write (device, payload, payload_size);
+    infdevice_write (device, payload, total_chunk_size);
 
     // Cleanup
     free(payload);
