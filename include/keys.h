@@ -40,13 +40,13 @@ typedef enum {
     INF_KEY_12  = (1 << 12),
     INF_KEY_13  = (1 << 13),
     INF_KEY_14  = (1 << 14),
-} inf_key_t;
+} infkey_t;
 
 const unsigned int INF_NUM_KEYS = 15;
 
-static inline inf_key_t inf_key_num_to_key (int num)
+static inline infkey_t infkey_num_to_key (int num)
 {
-    inf_key_t key = INF_KEY_CLEARED;
+    infkey_t key = INF_KEY_CLEARED;
     if (num >= 0 && num < INF_NUM_KEYS) {
         key = (1 << num);
     }
@@ -54,7 +54,7 @@ static inline inf_key_t inf_key_num_to_key (int num)
     return key;
 }
 
-static inline int inf_key_to_key_num (inf_key_t key)
+static inline int infkey_to_key_num (infkey_t key)
 {
     if (key == INF_KEY_CLEARED) return -1;
 

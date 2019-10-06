@@ -151,8 +151,6 @@ void infpixmap_update_with_surface (infpixmap_t     *pixmap,
             data[offset++] = pixel[2] & 0xFF;
         }
     }
-
-    return pixmap;
 }
 
 cairo_surface_t* infpixmap_get_surface (infpixmap_t *pixmap)

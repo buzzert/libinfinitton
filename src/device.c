@@ -175,7 +175,7 @@ void infdevice_close (infdevice_t *device)
 }
 
 void infdevice_set_pixmap_for_key_id (infdevice_t *device, 
-                                      inf_key_t    key_id, 
+                                      infkey_t    key_id, 
                                       infpixmap_t *pixmap)
 {
    transfer_pixmap (device, pixmap);
@@ -184,11 +184,11 @@ void infdevice_set_pixmap_for_key_id (infdevice_t *device,
    // happens on the display.
    usleep (1500);
 
-   unsigned int keynum = inf_key_to_key_num (key_id);
+   unsigned int keynum = infkey_to_key_num (key_id);
    send_feature (device, keynum, pixmap);
 }
 
-inf_key_t infdevice_read_key (infdevice_t *device)
+infkey_t infdevice_read_key (infdevice_t *device)
 {
     inf_input_t input_event;
     hid_read (device->hid_device, (unsigned char *)&input_event, sizeof (inf_input_t));

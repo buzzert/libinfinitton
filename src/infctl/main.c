@@ -54,7 +54,7 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
         cairo_set_source_rgb (cr, color[0], color[1], color[2]);
         cairo_paint (cr);
 
-        inf_key_t key = inf_key_num_to_key (num);
+        infkey_t key = infkey_num_to_key (num);
 
         if (key != INF_KEY_CLEARED) {
             infpixmap_update_with_surface (pixmap, surface);
@@ -87,7 +87,7 @@ static void test_pixmap_bmp (infdevice_t *device, char **argv)
         return;
     }
 
-    inf_key_t key_id = inf_key_num_to_key (keynum);
+    infkey_t key_id = infkey_num_to_key (keynum);
     infdevice_set_pixmap_for_key_id (device, key_id, pixmap);
     infpixmap_free (pixmap);
 }
@@ -108,10 +108,10 @@ static void test_reading (infdevice_t *device, char **argv)
     pango_layout_set_font_description (layout, font);
     pango_font_description_free (font);
 
-    inf_key_t pressed_key = INF_KEY_CLEARED;
+    infkey_t pressed_key = INF_KEY_CLEARED;
     for (;;) {
         for (unsigned int keynum = 0; keynum < INF_NUM_KEYS; keynum++) {
-            inf_key_t key = inf_key_num_to_key (keynum);
+            infkey_t key = infkey_num_to_key (keynum);
             bool highlighted = (key & pressed_key);
 
             // Rotate 90 deg
@@ -154,7 +154,7 @@ static void test_reading (infdevice_t *device, char **argv)
 
         pressed_key = infdevice_read_key (device);
 
-        int pressed_keynum = inf_key_to_key_num (pressed_key);
+        int pressed_keynum = infkey_to_key_num (pressed_key);
         if (pressed_keynum > 0) {
             printf("%d\n", pressed_keynum - 1);
         }
