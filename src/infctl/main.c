@@ -36,6 +36,7 @@ static void print_usage (const char *progname)
     fprintf (stderr, "\tbmp [key_id] [bmp_file]: Load BMP file\n");
     fprintf (stderr, "\t\tBMP file must be 72x72, 24-bits (R8 G8 B8), no colorspace info\n");
     fprintf (stderr, "\tpixmap: Test dynamically generated pixmaps\n");
+    fprintf (stderr, "\tread: Test reading input\n");
 }
 
 static void test_dynamic_pixmap (infdevice_t *device, char **args)
