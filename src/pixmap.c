@@ -54,12 +54,7 @@ infpixmap_t* infpixmap_open_file (const char *file_path)
     return pixmap;
 }
 
-cairo_surface_t* infpixmap_create_surface ()
-{
-    return cairo_image_surface_create (CAIRO_FORMAT_RGB24, ICON_WIDTH, ICON_HEIGHT);
-}
-
-infpixmap_t* infpixmap_create (cairo_surface_t *surface)
+infpixmap_t* infpixmap_create ()
 {
     // Set up the BMP header
     struct __attribute__((__packed__)) {
@@ -127,30 +122,7 @@ infpixmap_t* infpixmap_create (cairo_surface_t *surface)
     pixmap->size = buf_size;
     pixmap->imgdata_offset = bmp_header.data_offset;
 
-    infpixmap_update_with_surface (pixmap, surface);
     return pixmap;
-}
-
-void infpixmap_update_with_surface (infpixmap_t     *pixmap, 
-                                    cairo_surface_t *surface)
-{
-    unsigned char *data = pixmap->data;
-
-    // Convert surface data.
-    // Cairo stores each pixel as a 32-bit quantity, where the upper 8-bits are unused.
-    // For BMP, we need to convert pixels to 24-bit quantities
-    unsigned int offset = pixmap->imgdata_offset;
-    const int stride = cairo_image_surface_get_stride (surface);
-    unsigned char *surface_data = cairo_image_surface_get_data (surface);
-    for (unsigned int row = 0; row < ICON_HEIGHT; row++) {
-        for (unsigned int col = 0; col < ICON_WIDTH; col++) {
-            // 4 bytes per pixel in source data
-            unsigned char *pixel = surface_data + (row * stride) + (ICON_WIDTH - col) * 4;
-            data[offset++] = pixel[0] & 0xFF;
-            data[offset++] = pixel[1] & 0xFF;
-            data[offset++] = pixel[2] & 0xFF;
-        }
-    }
 }
 
 cairo_surface_t* infpixmap_get_surface (infpixmap_t *pixmap)
@@ -179,3 +151,31 @@ void infpixmap_free (infpixmap_t *pixmap)
     free (pixmap);
 }
 
+/* Cairo Extensions */
+
+cairo_surface_t* infpixmap_create_surface ()
+{
+    return cairo_image_surface_create (CAIRO_FORMAT_RGB24, ICON_WIDTH, ICON_HEIGHT);
+}
+
+void infpixmap_update_with_surface (infpixmap_t     *pixmap, 
+                                    cairo_surface_t *surface)
+{
+    unsigned char *data = pixmap->data;
+
+    // Convert surface data.
+    // Cairo stores each pixel as a 32-bit quantity, where the upper 8-bits are unused.
+    // For BMP, we need to convert pixels to 24-bit quantities
+    unsigned int offset = pixmap->imgdata_offset;
+    const int stride = cairo_image_surface_get_stride (surface);
+    unsigned char *surface_data = cairo_image_surface_get_data (surface);
+    for (unsigned int row = 0; row < ICON_HEIGHT; row++) {
+        for (unsigned int col = 0; col < ICON_WIDTH; col++) {
+            // 4 bytes per pixel in source data
+            unsigned char *pixel = surface_data + (row * stride) + (ICON_WIDTH - col) * 4;
+            data[offset++] = pixel[0] & 0xFF;
+            data[offset++] = pixel[1] & 0xFF;
+            data[offset++] = pixel[2] & 0xFF;
+        }
+    }
+}

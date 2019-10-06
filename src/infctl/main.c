@@ -42,9 +42,10 @@ static void print_usage (const char *progname)
 
 static void test_dynamic_pixmap (infdevice_t *device, char **args)
 {
+    infpixmap_t *pixmap = infpixmap_create ();
+
     cairo_surface_t *surface = infpixmap_create_surface ();
     cairo_t *cr = cairo_create (surface);
-    infpixmap_t *pixmap = infpixmap_create (surface);
 
     unsigned color_idx = 0;
     double color[3] = { 0, 0, 0 };
@@ -94,9 +95,10 @@ static void test_pixmap_bmp (infdevice_t *device, char **argv)
 
 static void test_reading (infdevice_t *device, char **argv)
 {
+    infpixmap_t *pixmap = infpixmap_create ();
+
     cairo_surface_t *surface = infpixmap_create_surface ();
     cairo_t *cr = cairo_create (surface);
-    infpixmap_t *pixmap = infpixmap_create (surface);
 
     PangoLayout *layout = pango_cairo_create_layout (cr);
     PangoFontDescription *font = pango_font_description_from_string ("Sans 24");
