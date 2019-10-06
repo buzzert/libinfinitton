@@ -37,7 +37,7 @@ static void print_usage (const char *progname)
     fprintf (stderr, "\tbmp [key_id] [bmp_file]: Load BMP file\n");
     fprintf (stderr, "\t\tBMP file must be 72x72, 24-bits (R8 G8 B8), no colorspace info\n");
     fprintf (stderr, "\tpixmap: Test dynamically generated pixmaps\n");
-    fprintf (stderr, "\tread: Test reading input\n");
+    fprintf (stderr, "\tread [dtmf tones dir]: Test reading input pretending to be a phone pad\n");
 }
 
 static void test_dynamic_pixmap (infdevice_t *device, char **args)
@@ -107,6 +107,24 @@ static void test_reading (infdevice_t *device, char **argv)
         return;
     }
 
+    char keynum_to_char[] = {
+        [0]  = '1',
+        [1]  = '4',
+        [2]  = '7',
+        [3]  = '*',
+        [4]  = ' ',
+        [5]  = '2',
+        [6]  = '5',
+        [7]  = '8',
+        [8]  = '0',
+        [9]  = ' ',
+        [10] = '3',
+        [11] = '6',
+        [12] = '9',
+        [13] = '#',
+        [14] = ' ',
+    };
+
     pango_layout_set_font_description (layout, font);
     pango_font_description_free (font);
 
@@ -138,7 +156,7 @@ static void test_reading (infdevice_t *device, char **argv)
 
             enum { NUM_STR_LEN = 3 };
             char num_str[NUM_STR_LEN];
-            snprintf (num_str, NUM_STR_LEN, "%d", keynum);
+            snprintf (num_str, NUM_STR_LEN, "%c", keynum_to_char[keynum]);
 
             pango_layout_set_text (layout, num_str, -1);
 
@@ -157,8 +175,24 @@ static void test_reading (infdevice_t *device, char **argv)
         pressed_key = infdevice_read_key (device);
 
         int pressed_keynum = infkey_to_key_num (pressed_key);
-        if (pressed_keynum > 0) {
-            printf("%d\n", pressed_keynum - 1);
+        if (pressed_keynum >= 0) {
+            char file = keynum_to_char[pressed_keynum];
+            char char_filename[] = { file, 0 };
+            
+            // Special keys
+            char *filename = char_filename;
+            if (file == '*') {
+                filename = "star";
+            } else if (file == '#') {
+                filename = "hash";
+            }
+            
+            enum { COMMAND_MAX_LEN = 128 };
+            char command_str[COMMAND_MAX_LEN];
+            snprintf (command_str, COMMAND_MAX_LEN, "aplay %s/%s.wav", argv[1], filename);
+
+            // What could go wrong...
+            system (command_str);
         }
     }
 

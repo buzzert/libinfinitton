@@ -61,5 +61,5 @@ static inline int infkey_to_key_num (infkey_t key)
     int num = 0;
     for (; key != 0; key >>= 1) { num++; };
 
-    return num;
+    return num - 1;
 }

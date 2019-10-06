@@ -183,7 +183,7 @@ void infdevice_set_pixmap_for_key_id (infdevice_t *device,
    // happens on the display.
    usleep (1500);
 
-   unsigned int keynum = infkey_to_key_num (key_id);
+   unsigned int keynum = 1 + infkey_to_key_num (key_id);
    send_feature (device, keynum, pixmap);
 }
 
