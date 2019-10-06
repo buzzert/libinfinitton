@@ -23,6 +23,10 @@ extern cairo_surface_t* infpixmap_create_surface ();
 // because it must be converted.
 extern infpixmap_t* infpixmap_create (cairo_surface_t *surface);
 
+// Updates a pixmap's pixel data with the given cairo surface in place. 
+extern void infpixmap_update_with_surface (infpixmap_t     *pixmap, 
+                                           cairo_surface_t *surface);
+
 // Get the data pointer
 extern unsigned char* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length);
 

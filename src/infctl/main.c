@@ -42,6 +42,7 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
 {
     cairo_surface_t *surface = infpixmap_create_surface ();
     cairo_t *cr = cairo_create (surface);
+    infpixmap_t *pixmap = infpixmap_create (surface);
 
     unsigned color_idx = 0;
     double color[3] = { 0, 0, 0 };
@@ -52,9 +53,11 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
         cairo_paint (cr);
 
         inf_key_t key = inf_key_num_to_key (num);
-        infpixmap_t *pixmap = infpixmap_create (surface);
-        infdevice_set_pixmap_for_key_id (device, key, pixmap);
-        infpixmap_free (pixmap);
+
+        if (key != INF_KEY_CLEARED) {
+            infpixmap_update_with_surface (pixmap, surface);
+            infdevice_set_pixmap_for_key_id (device, key, pixmap);
+        }
 
         num = (num + 1) % 16;
         
@@ -66,6 +69,9 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
 
         usleep(5000);
     }
+
+    infpixmap_free (pixmap);
+    cairo_surface_destroy (surface);
 }
 
 static void test_pixmap_bmp (infdevice_t *device, char **argv)
@@ -88,6 +94,7 @@ static void test_reading (infdevice_t *device, char **argv)
 {
     cairo_surface_t *surface = infpixmap_create_surface ();
     cairo_t *cr = cairo_create (surface);
+    infpixmap_t *pixmap = infpixmap_create (surface);
 
     inf_key_t pressed_key = INF_KEY_CLEARED;
     for (;;) {
@@ -101,14 +108,16 @@ static void test_reading (infdevice_t *device, char **argv)
             }
 
             cairo_paint (cr);
+            infpixmap_update_with_surface (pixmap, surface);
 
-            infpixmap_t *pixmap = infpixmap_create (surface);
             infdevice_set_pixmap_for_key_id (device, key, pixmap);
-            infpixmap_free (pixmap);
         }
 
         pressed_key = infdevice_read_key (device);
     }
+
+    infpixmap_free (pixmap);
+    cairo_surface_destroy (surface);
 }
 
 int main (int argc, char **argv)
