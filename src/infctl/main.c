@@ -51,8 +51,9 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
         cairo_set_source_rgb (cr, color[0], color[1], color[2]);
         cairo_paint (cr);
 
+        inf_key_t key = inf_key_num_to_key (num);
         infpixmap_t *pixmap = infpixmap_create (surface);
-        infdevice_set_pixmap_for_key_id (device, 1 + num, pixmap);
+        infdevice_set_pixmap_for_key_id (device, key, pixmap);
         infpixmap_free (pixmap);
 
         num = (num + 1) % 16;
@@ -69,7 +70,7 @@ static void test_dynamic_pixmap (infdevice_t *device, char **args)
 
 static void test_pixmap_bmp (infdevice_t *device, char **argv)
 {
-    const int key_id = strtod (argv[1], NULL);
+    const int keynum = strtod (argv[1], NULL);
     const char *bmp_path = argv[2];
 
     infpixmap_t *pixmap = infpixmap_open_file (bmp_path);
@@ -78,6 +79,7 @@ static void test_pixmap_bmp (infdevice_t *device, char **argv)
         return;
     }
 
+    inf_key_t key_id = inf_key_num_to_key (keynum);
     infdevice_set_pixmap_for_key_id (device, key_id, pixmap);
     infpixmap_free (pixmap);
 }
@@ -101,7 +103,7 @@ static void test_reading (infdevice_t *device, char **argv)
             cairo_paint (cr);
 
             infpixmap_t *pixmap = infpixmap_create (surface);
-            infdevice_set_pixmap_for_key_id (device, 1 + keynum, pixmap);
+            infdevice_set_pixmap_for_key_id (device, key, pixmap);
             infpixmap_free (pixmap);
         }
 

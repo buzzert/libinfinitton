@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 #define VENDOR_ID   0xFFFF
 #define PRODUCT_ID  0x1F40
@@ -174,16 +175,17 @@ void infdevice_close (infdevice_t *device)
 }
 
 void infdevice_set_pixmap_for_key_id (infdevice_t *device, 
-                                      const unsigned key_id, 
+                                      inf_key_t    key_id, 
                                       infpixmap_t *pixmap)
 {
    transfer_pixmap (device, pixmap);
 
    // SUCKS that this appears to be necessary. Without this, all kinds of corruption
    // happens on the display.
-   usleep (1000);
+   usleep (1500);
 
-   send_feature (device, key_id, pixmap);
+   unsigned int keynum = inf_key_to_key_num (key_id);
+   send_feature (device, keynum, pixmap);
 }
 
 inf_key_t infdevice_read_key (infdevice_t *device)

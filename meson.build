@@ -1,6 +1,8 @@
 project('infinitton', 'c',
-  default_options: ['c_std=c11']
+  default_options: ['std=c11']
 )
+
+add_global_arguments('-D_XOPEN_SOURCE=600', language: 'c')
 
 inc = include_directories('include')
 

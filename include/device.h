@@ -20,7 +20,7 @@ extern void infdevice_close (infdevice_t *device);
 
 // Sets a pixmap (icon) to a particular key_id, where key_id is a number between 0 and 15.
 extern void infdevice_set_pixmap_for_key_id (infdevice_t *device, 
-                                             const unsigned key_id, 
+                                             inf_key_t    key_id, 
                                              infpixmap_t *pixmap);
 
 extern inf_key_t infdevice_read_key (infdevice_t *device);
