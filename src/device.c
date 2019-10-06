@@ -139,7 +139,7 @@ infdevice_t* infdevice_open ()
 {
     hid_device *hid_device = NULL;
     if (!util_debugging_enabled ()) {
-        hid_device = hid_open (0xffff, 0x1f40, NULL);
+        hid_device = hid_open (VENDOR_ID, PRODUCT_ID, NULL);
         if (hid_device == NULL) {
             fprintf (stderr, "Unable to open device: %s\n", (const char *)hid_error (hid_device));
             fprintf (stderr, "Check permissions?\n");
