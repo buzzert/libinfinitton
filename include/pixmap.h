@@ -9,6 +9,9 @@
 #include <stdlib.h>
 #include <cairo/cairo.h>
 
+#define ICON_WIDTH  72
+#define ICON_HEIGHT 72
+
 struct infpixmap_t_;
 typedef struct infpixmap_t_ infpixmap_t;
 

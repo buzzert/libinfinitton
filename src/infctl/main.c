@@ -9,6 +9,7 @@
 #include <pango/pangocairo.h>
 
 #include <math.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -97,24 +98,66 @@ static void test_reading (infdevice_t *device, char **argv)
     cairo_t *cr = cairo_create (surface);
     infpixmap_t *pixmap = infpixmap_create (surface);
 
+    PangoLayout *layout = pango_cairo_create_layout (cr);
+    PangoFontDescription *font = pango_font_description_from_string ("Sans 24");
+    if (font == NULL) {
+        fprintf (stderr, "Could not find font\n");
+        return;
+    }
+
+    pango_layout_set_font_description (layout, font);
+    pango_font_description_free (font);
+
     inf_key_t pressed_key = INF_KEY_CLEARED;
     for (;;) {
         for (unsigned int keynum = 0; keynum < INF_NUM_KEYS; keynum++) {
             inf_key_t key = inf_key_num_to_key (keynum);
+            bool highlighted = (key & pressed_key);
 
-            // Refresh screen
+            // Rotate 90 deg
+            cairo_save (cr);
+            cairo_translate (cr, ICON_WIDTH / 2, ICON_HEIGHT / 2);
+            cairo_rotate (cr, M_PI_2);
+            cairo_translate (cr, -ICON_WIDTH / 2, -ICON_HEIGHT / 2);
+
+            // Background color
             cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
-            if (key & pressed_key) {
-                cairo_set_source_rgb (cr, 1.0, 0.0, 0.0);
+            if (highlighted) {
+                cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
             }
 
             cairo_paint (cr);
-            infpixmap_update_with_surface (pixmap, surface);
 
+            // Draw number label
+            cairo_set_source_rgb (cr, 0.0, 1.0, 1.0);
+            if (highlighted) {
+                cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+            }
+
+            enum { NUM_STR_LEN = 3 };
+            char num_str[NUM_STR_LEN];
+            snprintf (num_str, NUM_STR_LEN, "%d", keynum);
+
+            pango_layout_set_text (layout, num_str, -1);
+
+            int width; int height;
+            pango_layout_get_pixel_size (layout, &width, &height);
+
+            cairo_move_to (cr, (ICON_WIDTH - width) / 2.0, (ICON_HEIGHT - height) / 2.0);
+            pango_cairo_show_layout (cr, layout);
+
+            infpixmap_update_with_surface (pixmap, surface);
             infdevice_set_pixmap_for_key_id (device, key, pixmap);
+
+            cairo_restore (cr);
         }
 
         pressed_key = infdevice_read_key (device);
+
+        int pressed_keynum = inf_key_to_key_num (pressed_key);
+        if (pressed_keynum > 0) {
+            printf("%d\n", pressed_keynum - 1);
+        }
     }
 
     infpixmap_free (pixmap);

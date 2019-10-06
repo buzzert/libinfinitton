@@ -1,5 +1,7 @@
 deps = [
     dependency('cairo'),
+    dependency('pango'),
+    dependency('pangocairo'),
 ]
 
 infctl = executable(

@@ -4,7 +4,6 @@ project('infinitton', 'c',
 
 deps = [
   dependency('hidapi-libusb'),
-  dependency('pangocairo'),
 ]
 
 srcs = [

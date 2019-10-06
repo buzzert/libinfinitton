@@ -11,9 +11,6 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 
-#define ICON_WIDTH  72
-#define ICON_HEIGHT 72
-
 struct infpixmap_t_ {
     unsigned char *data;
     size_t         size;
@@ -146,9 +143,9 @@ void infpixmap_update_with_surface (infpixmap_t     *pixmap,
     const int stride = cairo_image_surface_get_stride (surface);
     unsigned char *surface_data = cairo_image_surface_get_data (surface);
     for (unsigned int row = 0; row < ICON_HEIGHT; row++) {
-        unsigned char *pixel = surface_data + row * stride;
-
         for (unsigned int col = 0; col < ICON_WIDTH; col++) {
+            // 4 bytes per pixel in source data
+            unsigned char *pixel = surface_data + (row * stride) + (ICON_WIDTH - col) * 4;
             data[offset++] = pixel[0] & 0xFF;
             data[offset++] = pixel[1] & 0xFF;
             data[offset++] = pixel[2] & 0xFF;
