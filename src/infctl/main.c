@@ -6,6 +6,8 @@
 
 #include <infinitton.h>
 
+#include <pango/pangocairo.h>
+
 #include <math.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,6 +16,7 @@
 
 static void test_dynamic_pixmap (infdevice_t *device, char **args);
 static void test_pixmap_bmp (infdevice_t *device, char **argv);
+static void test_reading (infdevice_t *device, char **argv);
 
 typedef struct {
     const char *name;
@@ -23,6 +26,7 @@ typedef struct {
 static command_t __commands[] = {
     { "pixmap", test_dynamic_pixmap },
     { "bmp",    test_pixmap_bmp },
+    { "read",   test_reading },
 };
 
 static void print_usage (const char *progname)
@@ -78,6 +82,33 @@ static void test_pixmap_bmp (infdevice_t *device, char **argv)
     infpixmap_free (pixmap);
 }
 
+static void test_reading (infdevice_t *device, char **argv)
+{
+    cairo_surface_t *surface = infpixmap_create_surface ();
+    cairo_t *cr = cairo_create (surface);
+
+    inf_key_t pressed_key = INF_KEY_CLEARED;
+    for (;;) {
+        for (unsigned int keynum = 0; keynum < INF_NUM_KEYS; keynum++) {
+            inf_key_t key = inf_key_num_to_key (keynum);
+
+            // Refresh screen
+            cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+            if (key & pressed_key) {
+                cairo_set_source_rgb (cr, 1.0, 0.0, 0.0);
+            }
+
+            cairo_paint (cr);
+
+            infpixmap_t *pixmap = infpixmap_create (surface);
+            infdevice_set_pixmap_for_key_id (device, 1 + keynum, pixmap);
+            infpixmap_free (pixmap);
+        }
+
+        pressed_key = infdevice_read_key (device);
+    }
+}
+
 int main (int argc, char **argv)
 {
     if (argc < 2) {
@@ -96,7 +127,7 @@ int main (int argc, char **argv)
     for (; command_idx < num_commands; command_idx++) {
         const command_t command = __commands[command_idx];
         if (strncmp (argv[1], command.name, strlen(command.name)) == 0) {
-            command.function (device, argv);
+            command.function (device, argv + 1);
             break;
         }
     }

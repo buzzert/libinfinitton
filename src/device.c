@@ -9,6 +9,11 @@
 #include "../include/util.h"
 
 #include <hidapi/hidapi.h>
+
+// TODO: platform deps
+#include <linux/input.h>
+#include <linux/input-event-codes.h>
+
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
@@ -38,6 +43,11 @@ typedef struct __attribute__((__packed__)) {
 
     char    padding[13];
 } feature_packet_t;
+
+typedef struct __attribute__((__packed__)) {
+    int8_t  descriptor; // always seems to be 0x01.
+    int16_t key_state;  // this is 0x0000 when a key goes up.  
+} inf_input_t;
 
 struct infdevice_t_ {
     hid_device *hid_device;
@@ -166,7 +176,18 @@ void infdevice_set_pixmap_for_key_id (infdevice_t *device,
                                       infpixmap_t *pixmap)
 {
    transfer_pixmap (device, pixmap);
+
+   // SUCKS that this appears to be necessary. Without this, all kinds of corruption
+   // happens on the display.
+   usleep (1000);
+
    send_feature (device, key_id, pixmap);
 }
 
+inf_key_t infdevice_read_key (infdevice_t *device)
+{
+    inf_input_t input_event;
+    hid_read (device->hid_device, (unsigned char *)&input_event, sizeof (inf_input_t));
 
+    return input_event.key_state;
+}

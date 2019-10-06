@@ -7,6 +7,7 @@
 #pragma once
 
 #include "pixmap.h"
+#include "keys.h"
 
 struct infdevice_t_;
 typedef struct infdevice_t_ infdevice_t;
@@ -22,4 +23,5 @@ extern void infdevice_set_pixmap_for_key_id (infdevice_t *device,
                                              const unsigned key_id, 
                                              infpixmap_t *pixmap);
 
+extern inf_key_t infdevice_read_key (infdevice_t *device);
 
