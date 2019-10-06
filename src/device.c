@@ -4,9 +4,8 @@
  * Created 2019-02-13 by James Magahern <james@magahern.com>
  */
 
-#include "../include/device.h"
-#include "../include/pixmap.h"
-#include "../include/util.h"
+#include <infinitton/infinitton.h>
+#include <infinitton/util.h>
 
 #include <hidapi/hidapi.h>
 

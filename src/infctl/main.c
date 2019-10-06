@@ -4,7 +4,7 @@
  * Created on 2019-02-13 by James Magahern <james@magahern.com>
  */
 
-#include <infinitton.h>
+#include <infinitton/infinitton.h>
 
 #include <pango/pangocairo.h>
 

@@ -6,6 +6,7 @@
 
 #pragma once
 
-#include "device.h"
-#include "pixmap.h"
+#include <infinitton/keys.h>
+#include <infinitton/device.h>
+#include <infinitton/pixmap.h>
 

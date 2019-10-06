@@ -4,7 +4,7 @@
  * Created 2019-02-13 by James Magahern <james@magahern.com>
  */
 
-#include "../include/util.h"
+#include <infinitton/util.h>
 
 #include <stdlib.h>
 #include <string.h>
