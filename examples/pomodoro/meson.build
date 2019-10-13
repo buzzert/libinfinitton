@@ -1,4 +1,6 @@
 deps = [
+  dependency('cairo'),
+  dependency('pangocairo'),
 ]
 
 src = [
