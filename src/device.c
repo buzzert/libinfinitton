@@ -67,7 +67,7 @@ static void infdevice_feature (infdevice_t *device, unsigned char *data, size_t 
     }
 }
 
-static void transfer_pixmap(infdevice_t *device, infpixmap_t *pixmap)
+static void transfer_pixmap (infdevice_t *device, infpixmap_t *pixmap)
 {
     size_t size = 0;
     unsigned char *pixmap_data = infpixmap_get_data (pixmap, &size);
