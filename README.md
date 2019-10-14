@@ -5,9 +5,9 @@ It includes functionality for writing to the displays inside the buttons, as wel
 
 ### Building
 This project includes:
-    - **libinfinitton** The library for creating applications that drive the display and read buttons.
-    - **infctl** a command line program for controlling various things, but mostly for running tests.
-    - **examples** Example projects using libinfinitton
+- **libinfinitton** The library for creating applications that drive the display and read buttons.
+- **infctl** a command line program for controlling various things, but mostly for running tests.
+- **examples** Example projects using libinfinitton
 
 To build everything, use meson & ninja:
 ```
