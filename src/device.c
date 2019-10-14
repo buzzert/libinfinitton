@@ -151,6 +151,7 @@ infdevice_t* infdevice_open ()
         if (hid_device == NULL) {
             fprintf (stderr, "Unable to open device: %s\n", (const char *)hid_error (hid_device));
             fprintf (stderr, "Check permissions?\n");
+            return NULL;
         }
     }
 
