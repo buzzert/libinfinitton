@@ -9,10 +9,6 @@
 
 #include <hidapi/hidapi.h>
 
-// TODO: platform deps
-#include <linux/input.h>
-#include <linux/input-event-codes.h>
-
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
