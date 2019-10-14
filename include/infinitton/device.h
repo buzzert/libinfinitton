@@ -18,7 +18,7 @@ extern infdevice_t* infdevice_open ();
 // Close and cleanup the device
 extern void infdevice_close (infdevice_t *device);
 
-// Sets a pixmap (icon) to a particular key_id, where key_id is a number between 0 and 15.
+// Sets a pixmap (icon) to a particular key_id, see "keys.h" for what to pass as `key_id`.
 extern void infdevice_set_pixmap_for_key_id (infdevice_t *device, 
                                              infkey_t    key_id, 
                                              infpixmap_t *pixmap);
