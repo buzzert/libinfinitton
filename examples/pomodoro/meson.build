@@ -1,6 +1,7 @@
 deps = [
   dependency('cairo'),
   dependency('pangocairo'),
+  dependency('threads'),
 ]
 
 src = [
