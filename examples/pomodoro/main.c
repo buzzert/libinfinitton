@@ -7,9 +7,11 @@
 #include <semaphore.h>
 #include <sys/stat.h>
 
+#include <inttypes.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <unistd.h>
 
 static infdevice_t *g_shared_device;
@@ -27,12 +29,18 @@ typedef enum square_role_t {
 
     PLAY_PAUSE_BUTTON = 6,
     STOP_BUTTON = 11,
+
+    SUB_MINUTE = 7,
+    ADD_MINUTE = 12,
 } SquareRole;
 
 typedef enum event_type_t {
     PLAY_PAUSE_PRESSED,
     STOP_PRESSED,
     TICK,
+
+    ADD_MINUTE_PRESSED,
+    SUB_MINUTE_PRESSED,
 } EventType; 
 
 enum { MAX_EVENTS = 8 };
@@ -47,6 +55,9 @@ static struct {
     EventType  events[MAX_EVENTS];
     size_t     num_events;
     sem_t     *post_event_sem;
+
+    SquareRole button_down;
+    int        last_button_down;
 
     struct {
         unsigned int length;
@@ -84,6 +95,25 @@ void update_pixmap_for_role (SquareRole role)
 
     infkey_t key = infkey_num_to_key (role);
     infdevice_set_pixmap_for_key_id (g_shared_device, key, g_shared_pixmap);
+}
+
+void mark_square_dirty (SquareRole square)
+{
+    g_app_state.dirty_squares[g_app_state.num_dirty_squares++] = square;
+}
+
+void change_minute_pressed (int minute_amount)
+{
+    if (g_app_state.running)
+        return; // these buttons have no effect while timer is running
+
+    int delta = 60 * minute_amount;
+    if (g_app_state.timer.length + delta > 0) {
+        g_app_state.timer.length += 60 * minute_amount;
+        g_app_state.timer.remaining = g_app_state.timer.length;
+        mark_square_dirty (TIMER_MIN);
+        mark_square_dirty (TIMER_SEC);
+    }
 }
 
 void draw_string (cairo_t *cr, PangoFontDescription *font, const char *str)
@@ -168,6 +198,20 @@ void draw_play_pause_button (SquareRole role, cairo_t *cr)
     }
 }
 
+void draw_length_control_button (SquareRole role, cairo_t *cr)
+{
+    if (g_app_state.running)
+        return; // don't draw these controls when timer is running
+
+    cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+
+    if (ADD_MINUTE == role) {
+        draw_string (cr, g_app_state.timer.sec_font, "+");
+    } else if (SUB_MINUTE == role) {
+        draw_string (cr, g_app_state.timer.sec_font, "-");
+    }
+}
+
 void draw_stop_button (SquareRole role, cairo_t *cr)
 {
     cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
@@ -194,6 +238,8 @@ void draw_dirty_squares (cairo_t *cr)
             case TIMER_PIE: draw_timer_pie (role, cr); break;
             case PLAY_PAUSE_BUTTON: draw_play_pause_button (role, cr); break;
             case STOP_BUTTON: draw_stop_button (role, cr); break;
+            case SUB_MINUTE: draw_length_control_button (role, cr); break;
+            case ADD_MINUTE: draw_length_control_button (role, cr); break;
             default: break;
         }
 
@@ -202,11 +248,6 @@ void draw_dirty_squares (cairo_t *cr)
     }
 
     g_app_state.num_dirty_squares = 0;
-}
-
-void mark_square_dirty (SquareRole square)
-{
-    g_app_state.dirty_squares[g_app_state.num_dirty_squares++] = square;
 }
 
 void initialize_drawing (void)
@@ -224,6 +265,16 @@ void initialize_drawing (void)
     mark_square_dirty (TIMER_PIE);
     mark_square_dirty (PLAY_PAUSE_BUTTON);
     mark_square_dirty (STOP_BUTTON);
+    mark_square_dirty (ADD_MINUTE);
+    mark_square_dirty (SUB_MINUTE);
+}
+
+void set_timer_running (bool running)
+{
+    g_app_state.running = running;
+    mark_square_dirty (PLAY_PAUSE_BUTTON);
+    mark_square_dirty (ADD_MINUTE);
+    mark_square_dirty (SUB_MINUTE);
 }
 
 void reset_timer (void)
@@ -244,8 +295,7 @@ void on_tick (void)
         g_app_state.timer.remaining--;
         if (g_app_state.timer.remaining == 0) {
             // Stop timer
-            g_app_state.running = false;
-            mark_square_dirty (PLAY_PAUSE_BUTTON);
+            set_timer_running (false);
         }
 
         mark_square_dirty (TIMER_MIN);
@@ -254,15 +304,31 @@ void on_tick (void)
     }
 }
 
+int millitime (void)
+{
+    struct timespec tm;
+    clock_gettime (CLOCK_MONOTONIC, &tm);
+
+    int millis = (tm.tv_sec * 1000);
+    millis += (tm.tv_nsec / 1000000);
+
+    return millis;
+}
+
 void* input_handler (void *args)
 {
     while (!g_app_state.exited) {
         infkey_t key = infdevice_read_key (g_shared_device);
 
         SquareRole role = infkey_to_key_num (key);
+        g_app_state.button_down = role;
+        g_app_state.last_button_down = millitime ();
         switch (role) {
             case PLAY_PAUSE_BUTTON: push_event (PLAY_PAUSE_PRESSED); break;
             case STOP_BUTTON: push_event (STOP_PRESSED); break;
+            case ADD_MINUTE: push_event (ADD_MINUTE_PRESSED); break;
+            case SUB_MINUTE: push_event (SUB_MINUTE_PRESSED); break;
+
             default: break;
         }
     }
@@ -274,8 +340,19 @@ void* tick_handler (void *args)
 {
     // TODO: better as a "green thread"?
     while (!g_app_state.exited) {
-        sleep (1);
         push_event (TICK);
+
+        int now = millitime ();
+
+        // Allow add/sub minute buttons to repeat
+        SquareRole down = g_app_state.button_down;
+        int time_diff = (now - g_app_state.last_button_down);
+        if ( (time_diff > 250) && (down == ADD_MINUTE || down == SUB_MINUTE)) {
+            push_event ( (down == ADD_MINUTE) ? ADD_MINUTE_PRESSED : SUB_MINUTE_PRESSED );
+            usleep (100000);
+        } else {
+            sleep (1);
+        }
     }
 
     return NULL;
@@ -299,8 +376,7 @@ void runloop (void)
                 break;
 
             case PLAY_PAUSE_PRESSED:
-                g_app_state.running = !g_app_state.running;
-                mark_square_dirty (PLAY_PAUSE_BUTTON);
+                set_timer_running (!g_app_state.running);
                 if (g_app_state.timer.remaining == 0) {
                     reset_timer ();
                 }
@@ -308,8 +384,16 @@ void runloop (void)
                 break;
 
             case STOP_PRESSED:
-                g_app_state.running = false;
+                set_timer_running (false);
                 reset_timer ();
+                break;
+
+            case ADD_MINUTE_PRESSED:
+                change_minute_pressed (+1);
+                break;
+
+            case SUB_MINUTE_PRESSED:
+                change_minute_pressed (-1);
                 break;
 
             default: break;
