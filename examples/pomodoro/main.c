@@ -54,7 +54,7 @@ static struct {
 
     EventType  events[MAX_EVENTS];
     size_t     num_events;
-    sem_t     *post_event_sem;
+    sem_t      post_event_sem;
 
     SquareRole button_down;
     int        last_button_down;
@@ -72,12 +72,12 @@ static struct {
 void push_event (EventType event)
 {
     g_app_state.events[g_app_state.num_events++] = event;
-    sem_post (g_app_state.post_event_sem);
+    sem_post (&g_app_state.post_event_sem);
 }
 
 EventType pop_event (void)
 {
-    sem_wait (g_app_state.post_event_sem);
+    sem_wait (&g_app_state.post_event_sem);
     return g_app_state.events[--g_app_state.num_events];
 }
 
@@ -432,7 +432,7 @@ int main (int argc, char **argv)
 
     initialize_drawing ();
 
-    g_app_state.post_event_sem = sem_open ("event semaphore", O_CREAT, S_IRUSR | S_IWUSR, 0);
+    sem_init (&g_app_state.post_event_sem, 0, 0);
     g_app_state.timer.remaining = g_app_state.timer.length;
     g_app_state.running = false;
 
