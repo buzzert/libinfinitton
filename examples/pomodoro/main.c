@@ -21,6 +21,7 @@ static PangoLayout *g_shared_layout;
 
 static const unsigned int kDefaultTimerLengthSeconds = 25 * 60; // 25 minutes
 static const double kButtonSize = 30.0;
+static const double kDownBorderSize = 15.0;
 
 typedef enum square_role_t {
     TIMER_MIN = 0,
@@ -32,6 +33,8 @@ typedef enum square_role_t {
 
     SUB_MINUTE = 7,
     ADD_MINUTE = 12,
+
+    INVALID = -1,
 } SquareRole;
 
 typedef enum event_type_t {
@@ -41,6 +44,9 @@ typedef enum event_type_t {
 
     ADD_MINUTE_PRESSED,
     SUB_MINUTE_PRESSED,
+
+    BUTTON_DOWN,
+    BUTTON_UP,
 } EventType; 
 
 enum { MAX_EVENTS = 8 };
@@ -57,7 +63,8 @@ static struct {
     sem_t      post_event_sem;
 
     SquareRole button_down;
-    int        last_button_down;
+    SquareRole last_button_down;
+    int        last_down_time;
 
     struct {
         unsigned int length;
@@ -114,6 +121,28 @@ void change_minute_pressed (int minute_amount)
         mark_square_dirty (TIMER_MIN);
         mark_square_dirty (TIMER_SEC);
     }
+}
+
+bool role_is_interactive (SquareRole role)
+{
+    bool interactive = false;
+    switch (role) {
+        // Only draw for interactive elements
+        case SUB_MINUTE:
+        case ADD_MINUTE:
+            // These are only interactive while NOT running
+            if (g_app_state.running) break;
+
+            // fallthrough
+        case PLAY_PAUSE_BUTTON:
+        case STOP_BUTTON:
+            interactive = true;
+            break;
+        default:
+            break;
+    }
+
+    return interactive;
 }
 
 void draw_string (cairo_t *cr, PangoFontDescription *font, const char *str)
@@ -223,6 +252,18 @@ void draw_stop_button (SquareRole role, cairo_t *cr)
     cairo_fill (cr);
 }
 
+void draw_down_button_indicator (SquareRole role, cairo_t *cr)
+{
+    if (role_is_interactive (role)) {
+        cairo_save (cr);
+        cairo_set_source_rgb (cr, 1.0, 1.0, 1.0);
+        cairo_rectangle (cr, 0, 0, ICON_WIDTH, ICON_HEIGHT);
+        cairo_set_line_width (cr, kDownBorderSize);
+        cairo_stroke (cr);
+        cairo_restore (cr);
+    }
+}
+
 void draw_dirty_squares (cairo_t *cr)
 {
     cairo_set_source_rgb (cr, 0, 0, 0);
@@ -230,8 +271,14 @@ void draw_dirty_squares (cairo_t *cr)
         // Clear
         cairo_paint (cr);
 
-        cairo_save (cr);
         SquareRole role = g_app_state.dirty_squares[i];
+
+        // Button down state
+        if (g_app_state.button_down == role) {
+            draw_down_button_indicator (role, cr);
+        }
+
+        cairo_save (cr);
         switch (role) {
             case TIMER_MIN: draw_timer (role, cr); break;
             case TIMER_SEC: draw_timer_sec (role, cr); break;
@@ -322,7 +369,14 @@ void* input_handler (void *args)
 
         SquareRole role = infkey_to_key_num (key);
         g_app_state.button_down = role;
-        g_app_state.last_button_down = millitime ();
+        g_app_state.last_down_time = millitime ();
+
+        if (role == INVALID) {
+            push_event (BUTTON_UP);
+        } else {
+            push_event (BUTTON_DOWN);
+        }
+
         switch (role) {
             case PLAY_PAUSE_BUTTON: push_event (PLAY_PAUSE_PRESSED); break;
             case STOP_BUTTON: push_event (STOP_PRESSED); break;
@@ -346,7 +400,7 @@ void* tick_handler (void *args)
 
         // Allow add/sub minute buttons to repeat
         SquareRole down = g_app_state.button_down;
-        int time_diff = (now - g_app_state.last_button_down);
+        int time_diff = (now - g_app_state.last_down_time);
         if ( (time_diff > 250) && (down == ADD_MINUTE || down == SUB_MINUTE)) {
             push_event ( (down == ADD_MINUTE) ? ADD_MINUTE_PRESSED : SUB_MINUTE_PRESSED );
             usleep (100000);
@@ -396,6 +450,17 @@ void runloop (void)
                 change_minute_pressed (-1);
                 break;
 
+            case BUTTON_UP:
+                if (g_app_state.last_button_down != INVALID) {
+                    mark_square_dirty (g_app_state.last_button_down);
+                }
+
+                break;
+            case BUTTON_DOWN:
+                g_app_state.last_button_down = g_app_state.button_down;
+                mark_square_dirty (g_app_state.button_down);
+                break;
+
             default: break;
         }
     }
@@ -418,6 +483,8 @@ int main (int argc, char **argv)
     }
 
     g_app_state.timer.length = kDefaultTimerLengthSeconds;
+    g_app_state.button_down = INVALID;
+    g_app_state.last_button_down = INVALID;
 
     if (argc > 1) {
         char *length_str = argv[1];
