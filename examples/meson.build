@@ -1,2 +1,3 @@
 subdir('pomodoro')
+subdir('taskman')
 
