@@ -130,6 +130,23 @@ int main (int argc, char **argv)
         );
 
         printf("    name: %s\n", result);
+        
+        const unsigned long *icon = get_window_property_and_type (
+                windows[i],
+                icon_atom,
+                &proplen,
+                &type,
+                &propsize
+        );
+
+        if (icon == NULL) {
+            printf ("NULL icon\n");
+            continue;
+        }
+
+        unsigned long width = *icon++;
+        unsigned long height = *icon++;
+        printf ("    icon: Icon(%d, %d)\n", width, height);
     }
 
     return 0;
