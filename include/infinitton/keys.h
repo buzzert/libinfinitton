@@ -42,7 +42,7 @@ typedef enum {
     INF_KEY_14  = (1 << 14),
 } infkey_t;
 
-const unsigned int INF_NUM_KEYS = 15;
+#define INF_NUM_KEYS 15
 
 static inline infkey_t infkey_num_to_key (int num)
 {

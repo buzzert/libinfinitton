@@ -145,6 +145,12 @@ unsigned char* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length)
     return pixmap->data;
 }
 
+unsigned char* infpixmap_get_image_data (infpixmap_t *pixmap, size_t *out_length)
+{
+    *out_length = (pixmap->size - pixmap->imgdata_offset);
+    return (pixmap->data + pixmap->imgdata_offset);
+}
+
 void infpixmap_free (infpixmap_t *pixmap)
 {
     free (pixmap->data);

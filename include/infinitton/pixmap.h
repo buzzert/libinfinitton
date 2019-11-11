@@ -22,8 +22,11 @@ extern infpixmap_t* infpixmap_create ();
 // The BMP file should be 72x72, 24-bits (R8 G8 B8), no colorspace info
 extern infpixmap_t* infpixmap_open_file (const char *file_path);
 
-// Get the data pointer
+// Get the raw data pointer, including the bmp header
 extern unsigned char* infpixmap_get_data (infpixmap_t *pixmap, size_t *out_length);
+
+// Returns a pointer to just the image data, stored as RGB, 24-bit quantities
+extern unsigned char* infpixmap_get_image_data (infpixmap_t *pixmap, size_t *out_length);
 
 // Free/cleanup pixmap
 extern void infpixmap_free (infpixmap_t *pixmap);
