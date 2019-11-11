@@ -1,50 +1,88 @@
 #include <infinitton/infinitton.h>
 
 #include <assert.h>
+#include <cairo/cairo.h>
+#include <math.h>
 #include <X11/Xlib.h>
 #include <X11/Xos.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <sys/param.h> // max, min
 
-#define MAX_STR 500000
+#define TITLE_BUFSIZE 512
+#define ICON_BUFSIZE 512 * 512
+
 #define WINDOW(win) (long unsigned int)win
 
 Display *__display = NULL;
 Window *__root_window = NULL;
 
+typedef struct {
+    const char      *title;
+    Window          *window;
+    cairo_surface_t *icon_surface;
+    const char      *icon_surface_data;
+} application_t;
+
+static application_t __apps_for_keys[INF_NUM_KEYS] = { 0 };
+static unsigned int __num_running_apps = 0;
+static bool __running = true;
+
+static int
+horiz_key_order (int i)
+{
+    // Converts from a ordinal number to horizontal ordering of keys on the keypad
+    return (i / 3) + ((i % 3) * 5);
+}
+
+static int
+from_horiz_key_order (int i)
+{
+    return (3 * (i % 5)) + ((i / 5) % 3);
+}
+
+static void
+raise_window_id (Window *window)
+{
+    XEvent event = { 0 };
+    event.xclient.type = ClientMessage;
+    event.xclient.serial = 0;
+    event.xclient.send_event = True;
+    event.xclient.message_type = XInternAtom (__display, "_NET_ACTIVE_WINDOW", False);
+    event.xclient.window = window;
+    event.xclient.format = 32;
+
+    XSendEvent (__display, __root_window, False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
+    XMapRaised (__display, window);
+}
+
 static const char *
 get_window_property_and_type (Window *window,
-                              Atom  atom, 
-                              long *length, 
-                              Atom *type, 
-                              int  *size)
+                              Atom    atom, 
+                              size_t  maxsize,
+                              long   *length, 
+                              Atom   *type, 
+                              int    *size)
 {
     unsigned char *prop = NULL;
-
-#if 0 // callers must free!
-    if (prop) {
-        XFree (prop);
-        prop = NULL;
-    }
-#endif
 
     Atom actual_type;
     int actual_format;
     unsigned long nitems;
     unsigned long bytes_after;
     int status = XGetWindowProperty (
-            __display, 
-            WINDOW(window), 
-            atom,
-            0,
-            (MAX_STR + 3) / 4,
-			False, 
-            AnyPropertyType, 
-            &actual_type,
-			&actual_format, 
-            &nitems, 
-            &bytes_after,
-			&prop
+        __display, 
+        WINDOW(window), 
+        atom,
+        0,
+        maxsize,
+        False, 
+        AnyPropertyType, 
+        &actual_type,
+        &actual_format, 
+        &nitems, 
+        &bytes_after,
+        &prop
     );
 
     if (status == BadWindow) {
@@ -73,10 +111,215 @@ get_window_property_and_type (Window *window,
             break;
     }
 
-    *length = MIN (nitems * nbytes, MAX_STR);
+    *length = MIN (nitems * nbytes, ICON_BUFSIZE);
     *type = actual_type;
     *size = nbytes; // actual_format;
     return (const char *)prop;
+}
+
+void 
+apply_rotation (cairo_t *cr)
+{
+    // Rotate 90 deg
+    cairo_translate (cr, ICON_WIDTH / 2, ICON_HEIGHT / 2);
+    cairo_rotate (cr, M_PI_2);
+    cairo_translate (cr, -ICON_WIDTH / 2, -ICON_HEIGHT / 2);
+}
+
+cairo_surface_t*
+create_surface_for_xicon (unsigned long *icon,
+                          size_t         icon_len)
+{
+    unsigned int idx = 0;
+    unsigned int width = icon[idx++];
+    unsigned int height = icon[idx++];
+
+    int *pixel_buffer = (int *)&icon[idx];
+    for (unsigned i = 0; i < MIN(width * height, icon_len); i++) {
+        int pixel = icon[idx + i];
+        
+        int alpha = (pixel & 0xFF000000) >> 24;
+        int red   = (pixel & 0x00FF0000) >> 16;
+        int green = (pixel & 0x0000FF00) >> 8;
+        int blue  = (pixel & 0x000000FF);
+
+        float alphaFactor = (float)alpha / 255;
+        red *= alphaFactor;
+        green *= alphaFactor;
+        blue *= alphaFactor;
+        pixel_buffer[i] = (pixel & 0xFF000000) + (red << 16) + (green << 8) + blue;
+    }
+
+    const int stride = width * sizeof (int);
+    cairo_surface_t *icon_surface = cairo_image_surface_create_for_data (
+        pixel_buffer,
+        CAIRO_FORMAT_ARGB32,
+        width,
+        height,
+        stride
+    );
+
+    return icon_surface;
+}
+
+static void
+draw_icon_surface_to_key (cairo_surface_t *icon_surface, 
+                          infkey_t         key,
+                          infdevice_t     *device)
+{
+    if (icon_surface == NULL) {
+        return;
+    }
+
+    const unsigned int kMaxIconSize = 48;
+
+    int width = cairo_image_surface_get_width (icon_surface);
+    int height = cairo_image_surface_get_height (icon_surface);
+
+    cairo_surface_t *pixmap_surface = infpixmap_create_surface ();
+    cairo_t *cr = cairo_create (pixmap_surface);
+    apply_rotation (cr);
+
+    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_paint (cr);
+
+    double scale_factor = ((double)kMaxIconSize / (double)width);
+    cairo_scale (cr, scale_factor, scale_factor);
+
+    // Center
+    double center = (1 / scale_factor) * ((ICON_WIDTH - kMaxIconSize) / 2);
+
+    cairo_set_source_surface (cr, icon_surface, center, center);
+    cairo_paint (cr);
+
+    infpixmap_t *pixmap = infpixmap_create ();
+    infpixmap_update_with_surface (pixmap, pixmap_surface);
+    infdevice_set_pixmap_for_key_id (device, key, pixmap);
+
+    infpixmap_free (pixmap);
+    cairo_surface_destroy (pixmap_surface);
+    cairo_destroy (cr);
+}
+
+void
+clear_key (infkey_t     key,
+           infdevice_t *device)
+{
+    infpixmap_t *pixmap = infpixmap_create ();
+    infdevice_set_pixmap_for_key_id (device, key, pixmap);
+
+    infpixmap_free (pixmap);
+}
+
+void
+refresh_running_apps ()
+{
+    Atom client_list_atom = XInternAtom (__display, "_NET_CLIENT_LIST", True);
+    Atom name_atom = XInternAtom (__display, "WM_NAME", True);
+    Atom icon_atom = XInternAtom (__display, "_NET_WM_ICON", True);
+
+    Atom type;
+    int item_size, length;
+    const unsigned long int *windows = get_window_property_and_type (
+        __root_window,
+        client_list_atom,
+        TITLE_BUFSIZE,
+        &length,
+        &type,
+        &item_size
+    );
+
+    // Items are Window pointers
+    unsigned nitems = (length / item_size);
+    printf ("num windows: %d\n", nitems);
+
+    for (unsigned i = 0; i < nitems; i++) {
+        int proplen, propsize;
+        const char *title = get_window_property_and_type (
+                windows[i],
+                name_atom,
+                TITLE_BUFSIZE,
+                &proplen,
+                &type,
+                &propsize
+        );
+
+        const unsigned long *icon = get_window_property_and_type (
+                windows[i],
+                icon_atom,
+                ICON_BUFSIZE,
+                &proplen,
+                &type,
+                &propsize
+        );
+
+        cairo_surface_t *icon_surface = NULL;
+        if (icon != NULL) {
+            icon_surface = create_surface_for_xicon (icon, proplen);
+        }
+
+        // TODO: move these cleanup methods into someplace more sane
+        if (__apps_for_keys[i].icon_surface != NULL) {
+            XFree (__apps_for_keys[i].icon_surface_data);
+            cairo_surface_destroy (__apps_for_keys[i].icon_surface);
+        }
+
+        if (__apps_for_keys[i].title != NULL) {
+            XFree (__apps_for_keys[i].title);
+        }
+
+        __apps_for_keys[i] = (application_t) {
+            .title = title,
+            .window = windows[i],
+            .icon_surface = icon_surface,
+            .icon_surface_data = icon
+        };
+    }
+
+    XFree (windows);
+    __num_running_apps = nitems;
+}
+
+static void 
+draw_running_app_icons (infdevice_t *device)
+{
+    for (unsigned int i = 0; i < INF_NUM_KEYS; i++) {
+        infkey_t key = infkey_num_to_key (horiz_key_order (i));
+
+        if (i < __num_running_apps) {
+            application_t app = __apps_for_keys[i];
+            draw_icon_surface_to_key (app.icon_surface, key, device);
+        } else {
+            clear_key (key, device);
+        }
+    }
+}
+
+static void
+wait_for_input (infdevice_t *device)
+{
+    infkey_t pressed_key = infdevice_read_key (device);
+
+    int keynum = infkey_to_key_num (pressed_key);
+    int app_index = from_horiz_key_order (keynum);
+    printf ("PRESS: %d = %d/%d\n", keynum, app_index, __num_running_apps);
+    if (app_index < __num_running_apps) {
+        application_t pressed_app = __apps_for_keys[app_index];
+        printf ("pressed: %s\n", pressed_app.title);
+
+        raise_window_id (pressed_app.window);
+    }
+}
+
+static void
+runloop (infdevice_t *device)
+{
+    while (__running) {
+        refresh_running_apps ();
+        draw_running_app_icons (device);
+        
+        wait_for_input (device);
+    }
 }
 
 int main (int argc, char **argv)
@@ -93,61 +336,15 @@ int main (int argc, char **argv)
         return 1;
     }
 
-    Atom atom = XInternAtom (__display, "_NET_CLIENT_LIST", True);
-    if (atom == BadAtom) {
-        fprintf (stderr, "Bad atom.\n");
+    infdevice_t *device = infdevice_open ();
+    if (!device) {
+        fprintf (stderr, "Error opening inf device\n");
         return 1;
     }
 
-    Atom type;
-    int item_size, length;
-    const char *result = get_window_property_and_type (
-        __root_window,
-        atom,
-        &length,
-        &type,
-        &item_size
-    );
+    runloop (device);
 
-    // Items are Window pointers
-    unsigned nitems = (length / item_size);
-    printf ("num windows: %d\n", nitems);
-
-    Atom name_atom = XInternAtom (__display, "WM_NAME", True);
-    Atom icon_atom = XInternAtom (__display, "_NET_WM_ICON", True);
-
-    unsigned long int *windows = (unsigned long int *)result;
-    for (unsigned i = 0; i < nitems; i++) {
-        printf ("window id: 0x%x\n", windows[i]);
-        
-        int proplen, propsize;
-        result = get_window_property_and_type (
-                windows[i],
-                name_atom,
-                &proplen,
-                &type,
-                &propsize
-        );
-
-        printf("    name: %s\n", result);
-        
-        const unsigned long *icon = get_window_property_and_type (
-                windows[i],
-                icon_atom,
-                &proplen,
-                &type,
-                &propsize
-        );
-
-        if (icon == NULL) {
-            printf ("NULL icon\n");
-            continue;
-        }
-
-        unsigned long width = *icon++;
-        unsigned long height = *icon++;
-        printf ("    icon: Icon(%d, %d)\n", width, height);
-    }
+    infdevice_close (device);
 
     return 0;
 }
