@@ -5,6 +5,7 @@
 #include <math.h>
 #include <X11/Xlib.h>
 #include <X11/Xos.h>
+#include <pthread.h>
 #include <stdio.h>
 #include <stdbool.h>
 #include <sys/param.h> // max, min
@@ -28,6 +29,12 @@ static application_t __apps_for_keys[INF_NUM_KEYS] = { 0 };
 static unsigned int __num_running_apps = 0;
 static bool __running = true;
 
+// Atoms
+static Atom __a_active_window;
+static Atom __a_client_list;
+static Atom __a_wm_name;
+static Atom __a_wm_icon;
+
 static int
 horiz_key_order (int i)
 {
@@ -48,11 +55,15 @@ raise_window_id (Window *window)
     event.xclient.type = ClientMessage;
     event.xclient.serial = 0;
     event.xclient.send_event = True;
-    event.xclient.message_type = XInternAtom (__display, "_NET_ACTIVE_WINDOW", False);
+    event.xclient.message_type = __a_active_window;
     event.xclient.window = window;
     event.xclient.format = 32;
 
     XSendEvent (__display, __root_window, False, SubstructureRedirectMask | SubstructureNotifyMask, &event);
+
+    // xxx: X is not multithreaded, so this should be coordinated with the main thread instead.
+    XFlush(__display);
+
     XMapRaised (__display, window);
 }
 
@@ -64,6 +75,8 @@ get_window_property_and_type (Window *window,
                               Atom   *type, 
                               int    *size)
 {
+    if (window == NULL) return NULL;
+
     unsigned char *prop = NULL;
 
     Atom actual_type;
@@ -214,15 +227,11 @@ clear_key (infkey_t     key,
 void
 refresh_running_apps ()
 {
-    Atom client_list_atom = XInternAtom (__display, "_NET_CLIENT_LIST", True);
-    Atom name_atom = XInternAtom (__display, "WM_NAME", True);
-    Atom icon_atom = XInternAtom (__display, "_NET_WM_ICON", True);
-
     Atom type;
     int item_size, length;
     const unsigned long int *windows = get_window_property_and_type (
         __root_window,
-        client_list_atom,
+        __a_client_list,
         TITLE_BUFSIZE,
         &length,
         &type,
@@ -237,7 +246,7 @@ refresh_running_apps ()
         int proplen, propsize;
         const char *title = get_window_property_and_type (
                 windows[i],
-                name_atom,
+                __a_wm_name,
                 TITLE_BUFSIZE,
                 &proplen,
                 &type,
@@ -246,7 +255,7 @@ refresh_running_apps ()
 
         const unsigned long *icon = get_window_property_and_type (
                 windows[i],
-                icon_atom,
+                __a_wm_icon,
                 ICON_BUFSIZE,
                 &proplen,
                 &type,
@@ -295,31 +304,50 @@ draw_running_app_icons (infdevice_t *device)
     }
 }
 
-static void
-wait_for_input (infdevice_t *device)
+static int
+xlib_error_handler (Display *display, XErrorEvent *e)
 {
-    infkey_t pressed_key = infdevice_read_key (device);
+    fprintf (stderr, "XLib error: %d\n", e->error_code);
+    return 0;
+}
 
-    int keynum = infkey_to_key_num (pressed_key);
-    int app_index = from_horiz_key_order (keynum);
-    printf ("PRESS: %d = %d/%d\n", keynum, app_index, __num_running_apps);
-    if (app_index < __num_running_apps) {
-        application_t pressed_app = __apps_for_keys[app_index];
-        printf ("pressed: %s\n", pressed_app.title);
+static void*
+input_handler_main (void *ctxt)
+{
+    infdevice_t *device = (infdevice_t *)ctxt;
 
-        raise_window_id (pressed_app.window);
+    while (__running) {
+        infkey_t pressed_key = infdevice_read_key (device);
+
+        int keynum = infkey_to_key_num (pressed_key);
+        int app_index = from_horiz_key_order (keynum);
+        printf ("PRESS: %d = %d/%d\n", keynum, app_index, __num_running_apps);
+        if (app_index < __num_running_apps) {
+            application_t pressed_app = __apps_for_keys[app_index];
+            printf ("pressed: %s\n", pressed_app.title);
+
+            raise_window_id (pressed_app.window);
+        }
     }
 }
 
 static void
 runloop (infdevice_t *device)
 {
+    static pthread_t input_handler_thread = { 0 };
+    pthread_create (&input_handler_thread, NULL, input_handler_main, device);
+
+    XEvent event;
     while (__running) {
         refresh_running_apps ();
         draw_running_app_icons (device);
         
-        wait_for_input (device);
+        // Assume the next X event we get is a window raise/create/destroy event,
+        // and just continue the loop to refresh the list of apps
+        XNextEvent (__display, &event);
     }
+
+    pthread_join (&input_handler_thread, NULL);
 }
 
 int main (int argc, char **argv)
@@ -341,6 +369,16 @@ int main (int argc, char **argv)
         fprintf (stderr, "Error opening inf device\n");
         return 1;
     }
+
+    // Atoms
+    __a_active_window = XInternAtom (__display, "_NET_ACTIVE_WINDOW", False);
+    __a_client_list = XInternAtom (__display, "_NET_CLIENT_LIST", True);
+    __a_wm_name = XInternAtom (__display, "WM_NAME", True);
+    __a_wm_icon = XInternAtom (__display, "_NET_WM_ICON", True);
+
+    // Register for all X events
+    XSelectInput (__display, __root_window, SubstructureNotifyMask);
+    XSetErrorHandler (xlib_error_handler);
 
     runloop (device);
 
