@@ -15,6 +15,7 @@
 
 Display *__display;
 Window   __root_window;
+Window   __active_window;
 
 typedef struct {
     Window           window;
@@ -175,31 +176,80 @@ create_surface_for_xicon (unsigned long *icon,
 }
 
 static void
-draw_icon_surface_to_key (cairo_surface_t *icon_surface, 
-                          infkey_t         key,
-                          infdevice_t     *device)
+compute_average_color (cairo_surface_t *pixmap,
+                       double *out_red,
+                       double *out_green,
+                       double *out_blue)
 {
-    if (icon_surface == NULL) {
-        return;
+    // This algorithm doesn't really produce the expected result, but I think
+    // it looks quite good anyway.
+
+    double r, g, b;
+    double total_pixels = 0;
+    
+    int width = cairo_image_surface_get_width (pixmap);
+    int height = cairo_image_surface_get_height (pixmap);
+
+    const int stride = cairo_image_surface_get_stride (pixmap);
+    unsigned char *surface_data = cairo_image_surface_get_data (pixmap);
+    for (unsigned int row = 0; row < height; row++) {
+        for (unsigned int col = 0; col < width; col++) {
+            unsigned char *pixel = surface_data + (row * stride) + (width - col) * 4;
+            char p_r = (pixel[0] & 0xFF);
+            char p_g = (pixel[1] & 0xFF);
+            char p_b = (pixel[2] & 0xFF);
+
+            if (p_r > 10 && p_g > 10 && p_b > 10) {
+                r += (p_r / 255.0);
+                g += (p_g / 255.0);
+                b += (p_b / 255.0);
+
+                total_pixels++;
+            }
+        }
     }
+
+    *out_red = (r / total_pixels);
+    *out_green = (g / total_pixels);
+    *out_blue = (b / total_pixels);
+}
+
+static void
+draw_key (application_t *app, 
+          infkey_t       key,
+          infdevice_t   *device)
+{
 
     cairo_surface_t *pixmap_surface = infpixmap_create_surface ();
     cairo_t *cr = cairo_create (pixmap_surface);
     apply_rotation (cr);
 
-    cairo_set_source_rgb(cr, 0.0, 0.0, 0.0);
+    cairo_surface_t *icon_surface = app->icon_surface;
+
+    cairo_set_source_rgb (cr, 0.0, 0.0, 0.0);
+    if (app->window == __active_window) {
+        double r, g, b;
+        if (icon_surface != NULL) {
+            compute_average_color (icon_surface, &r, &g, &b);
+        }
+
+        cairo_set_source_rgb (cr, r, g, b);
+    }
+
     cairo_paint (cr);
 
-    const unsigned int kMaxIconSize = 48;
-    int width = cairo_image_surface_get_width (icon_surface);
-    double scale_factor = ((double)kMaxIconSize / (double)width);
-    cairo_scale (cr, scale_factor, scale_factor);
+    if (icon_surface != NULL) {
+        const unsigned int kMaxIconSize = 48;
+        int width = cairo_image_surface_get_width (icon_surface);
+        double scale_factor = ((double)kMaxIconSize / (double)width);
+        cairo_scale (cr, scale_factor, scale_factor);
 
-    // Center
-    double center = (1 / scale_factor) * ((ICON_WIDTH - kMaxIconSize) / 2);
+        // Center
+        double center = (1 / scale_factor) * ((ICON_WIDTH - kMaxIconSize) / 2);
 
-    cairo_set_source_surface (cr, icon_surface, center, center);
-    cairo_paint (cr);
+        cairo_set_source_surface (cr, icon_surface, center, center);
+        cairo_paint (cr);
+    }
 
     infpixmap_t *pixmap = infpixmap_create ();
     infpixmap_update_with_surface (pixmap, pixmap_surface);
@@ -294,7 +344,7 @@ draw_running_app_icons (infdevice_t *device)
 
         if (i < __num_running_apps) {
             application_t app = __apps_for_keys[i];
-            draw_icon_surface_to_key (app.icon_surface, key, device);
+            draw_key (&app, key, device);
         } else {
             clear_key (key, device);
         }
@@ -331,6 +381,26 @@ input_handler_main (void *ctxt)
 }
 
 static void
+handle_x_event (XEvent event)
+{
+    // Get active window
+    Atom type;
+    int item_size;
+    long int length;
+    Window *active_windows = (Window *) get_window_property_and_type (
+        __root_window,
+        __a_active_window,
+        TITLE_BUFSIZE,
+        &length,
+        &type,
+        &item_size
+    );
+
+    unsigned nitems = (length / item_size);
+    __active_window = (nitems > 0 && active_windows != NULL) ? active_windows[0] : 0;
+}
+
+static void
 runloop (infdevice_t *device)
 {
     static pthread_t input_handler_thread = { 0 };
@@ -344,6 +414,7 @@ runloop (infdevice_t *device)
         // Assume the next X event we get is a window raise/create/destroy event,
         // and just continue the loop to refresh the list of apps
         XNextEvent (__display, &event);
+        handle_x_event (event);
     }
 
     pthread_join (input_handler_thread, NULL);
