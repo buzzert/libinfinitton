@@ -286,8 +286,9 @@ refresh_running_apps ()
     );
 
     // Items are Window pointers
-    unsigned nitems = (length / item_size);
+    unsigned nitems = MIN(INF_NUM_KEYS, length / item_size);
 
+    unsigned index = 0;
     for (unsigned i = 0; i < nitems; i++) {
         int propsize;
         long int proplen;
@@ -312,28 +313,33 @@ refresh_running_apps ()
         cairo_surface_t *icon_surface = NULL;
         if (icon != NULL) {
             icon_surface = create_surface_for_xicon (icon, proplen);
+        } else {
+            // RULE: Skip empty icons, for now. 
+            continue;
         }
 
         // TODO: move these cleanup methods into someplace more sane
-        if (__apps_for_keys[i].icon_surface != NULL) {
-            XFree (__apps_for_keys[i].icon_surface_data);
-            cairo_surface_destroy (__apps_for_keys[i].icon_surface);
+        if (__apps_for_keys[index].icon_surface != NULL) {
+            XFree (__apps_for_keys[index].icon_surface_data);
+            cairo_surface_destroy (__apps_for_keys[index].icon_surface);
         }
 
-        if (__apps_for_keys[i].title != NULL) {
-            XFree (__apps_for_keys[i].title);
+        if (__apps_for_keys[index].title != NULL) {
+            XFree (__apps_for_keys[index].title);
         }
 
-        __apps_for_keys[i] = (application_t) {
+        __apps_for_keys[index] = (application_t) {
             .title = (char *)title,
             .window = windows[i],
             .icon_surface = icon_surface,
             .icon_surface_data = icon
         };
+
+        index++;
     }
 
     XFree (windows);
-    __num_running_apps = nitems;
+    __num_running_apps = index;
 }
 
 static void 
@@ -368,11 +374,8 @@ input_handler_main (void *ctxt)
 
         int keynum = infkey_to_key_num (pressed_key);
         int app_index = from_horiz_key_order (keynum);
-        printf ("PRESS: %d = %d/%d\n", keynum, app_index, __num_running_apps);
         if (app_index < __num_running_apps) {
             application_t pressed_app = __apps_for_keys[app_index];
-            printf ("pressed: %s\n", pressed_app.title);
-
             raise_window_id (pressed_app.window);
         }
     }
